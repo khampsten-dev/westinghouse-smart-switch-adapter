@@ -107,10 +107,10 @@ async def wait_days():
         await asyncio.sleep_ms(us_per_day)
         days_until_maintenance -= 1
 
-async def main():
+async def Main():
     t1 = asyncio.create_task(manage_start_stop())
     t2 = asyncio.create_task(update_leds())
     t3 = asyncio.create_task(wait_days())
     await asyncio.gather(t1, t2, t3)
 
-asyncio.run(main())
+asyncio.run(Main())

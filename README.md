@@ -31,17 +31,19 @@ This project provides firmware for an ESP32-based adapter that automates the sta
 
 ## Bill of Materials
 
-* [Enclosure](https://www.amazon.com/dp/B0BZ871TH3)
-* [AC/DC Power Supply ESP32 Development Board 4 Way Channel 5V Relay](https://www.amazon.com/dp/B0DCZ549VQ)
-* [Serial Adapter to Deploy Code](https://www.amazon.com/dp/B00LZVEQEY)
-* [Optoisolators](https://www.amazon.com/dp/B09ZH6D7CQ)
-* [Fuse Holders](https://www.amazon.com/dp/B0BF9LDW1P)
-* [Fuses](https://www.amazon.com/dp/B07S96VTJR)
-* [Panel-mount LEDs](https://www.amazon.com/dp/B0B2L9FP4R)
-* [Rectifier](https://www.amazon.com/dp/B091MMPPZY)
-* [GX20-7 Connectors](https://www.amazon.com/dp/B09BMYB9Y4)
-* [Barrel Connector for Battery Tender](https://www.amazon.com/dp/B09Y1BBTZ2)
-* A few additional passives (see schematic)
+| Item                               | Description                                                                                                                                                                                                                                      | Link                                                                 |
+|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| Enclosure                          | HoHaing Junction Box Waterproof Plastic Project Box IP65 Plastic Project Box Electrical Box Enclosure Gray White 7.87"x4.72"x2.95"(200x120x75mm) - Amazon.com                                                                                   | [Amazon](https://www.amazon.com/dp/B0BZ871TH3)                      |
+| ESP32 Development Board with Relays | AC/DC Power Supply ESP32 Development Board Programmable Development Board Wireless WiFi 4 Way Channel 5V Relay Module ESP32-WROOM-32E for Arduino AC 90-250V / DC 7-30V : Electronics                                                           | [Amazon](https://www.amazon.com/dp/B0DCZ549VQ)                      |
+| Serial Adapter to Deploy Code      | HiLetgo CP2102 USB to TTL UART 232 485 Port Multi-Functional USB Serial Debug Tool for Windows Wince Linux Mac 32 64 : Electronics                                                                         | [Amazon](https://www.amazon.com/dp/B00LZVEQEY?th=1)                 |
+| Optoisolators                      | Alinan 4pcs 4CH Optocoupler PC817 4 Channel Isolation Board Voltage Converter Adapter Module 3.6-30V Driver Photoelectric Isolated Module : Industrial & Scientific                                       | [Amazon](https://www.amazon.com/dp/B09ZH6D7CQ)                      |
+| Fuse Holders                       | Joinfworld Panel Mount Fuse Holder 5x20mm 12V DC 250V AC Screw Cap Fuse Holders with Pre-Soldered Wires and Fast-Blow Glass Tube Fuses - 5Pack: Tools & Home Improvement                                  | [Amazon](https://www.amazon.com/dp/B0BF9LDW1P)                      |
+| Fuses                              | BOJACK 5x20mm 1A 1amp 250V 0.2 x 0.78 Inch F1AL250V Fast-Blow Glass Fuses (Pack of 20): Tools & Home Improvement                                                                                        | [Amazon](https://www.amazon.com/dp/B07S96VTJR)                      |
+| Panel-mount LEDs                   | Ltvystore 60Pcs 5MM 3Volt Prewired LED Diode 6 Colors LED Lamp Light Bulb Emitting Diodes + 60Pcs 5MM LED Clip Holder Panel Mount Black - Amazon.com                                                     | [Amazon](https://www.amazon.com/dp/B0B2L9FP4R?th=1)                 |
+| Rectifier                          | MRELC Rectifier 4 Wires Voltage Regulator Compatible with Motorcycle Boat Motor Pump ATV GY6 50 150cc Scooter Moped JCL NST TAOTAO : Automotive                                                          | [Amazon](https://www.amazon.com/dp/B091MMPPZY)                      |
+| GX20-7 Connectors                  | MECCANIXITY Aviation Connector Set 20mm 7 Terminals 5A 150V, GX20 Waterproof Male Female Connector Fittings with Plug Cover Pack of 5 Sets : Electronics                                                 | [Amazon](https://www.amazon.com/dp/B09BMYB9Y4)                      |
+| Barrel Connector for Battery Tender| ThePoEstore 20 Pair DC 12V 5A Adapter Barrel Plug, 5.5mm X 2.1mm 20 x Male & 20 x Female DC Power Connector Jack, for CCTV Security Camera LED Light Strip : Electronics                                 | [Amazon](https://www.amazon.com/dp/B09Y1BBTZ2)                      |
+
 
 ## Wiring Diagram
 

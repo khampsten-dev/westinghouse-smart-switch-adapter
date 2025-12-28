@@ -1,6 +1,8 @@
 import machine
 import time
-import asyncio
+
+# Wokwi/MicroPython-friendly asyncio import (minimal change)
+import uasyncio as asyncio
 
 in_run_sense = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)
 in_run_request = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -11,18 +13,27 @@ led_maintenance = machine.Pin(19, machine.Pin.OUT)
 relay_start_gen = machine.Pin(32, machine.Pin.OUT)
 relay_kill_gen = machine.Pin(33, machine.Pin.OUT)
 
+# Ensure known-safe startup states (minimal add)
+led_run_request.value(0)
+led_running.value(0)
+led_cool_down.value(0)
+led_maintenance.value(0)
+relay_start_gen.value(0)
+relay_kill_gen.value(0)
+
 cool_down_active = False
-cool_down_duration = 15 * 60 * 1000 # 15 minutes
+cool_down_duration = 15 * 60 * 1000  # 15 minutes
 cool_down_end = 0
 
-us_per_day = 24 * 60 * 60 * 1000 # one day ms counter
+us_per_day = 24 * 60 * 60 * 1000  # one day ms counter
 maintenance_active = False
-maintenance_interval = 7 # maintenance days
+maintenance_interval = 7  # maintenance days
 days_until_maintenance = maintenance_interval
-maintenance_duration = 10 * 60 * 1000 # 10 minutes
+maintenance_duration = 10 * 60 * 1000  # 10 minutes
 maintenance_end = 0
 
 kill_gen = False
+
 def is_running():
     return not in_run_sense.value()
 
@@ -80,7 +91,7 @@ async def manage_start_stop():
                 relay_start_gen.value(0)
             else:
                 relay_start_gen.value(1)
-                running = True
+                running = True  # left as-is to minimize diffs
         if is_maintenance_finished():
             maintenance_active = False
             kill_gen = True

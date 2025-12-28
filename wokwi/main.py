@@ -1,8 +1,20 @@
+import sys
+import select
 import machine
 import time
 
-# Wokwi/MicroPython-friendly asyncio import (minimal change)
-import uasyncio as asyncio
+DEBUG = True
+
+if DEBUG:
+    # Wokwi/MicroPython-friendly asyncio import (minimal change)
+    import uasyncio as asyncio
+    TIME_SCALE = 0.001  # 1/1000 speed-up
+else:
+    import asyncio
+    TIME_SCALE = 1
+def scaled(duration):
+    v = int(duration * TIME_SCALE)
+    return v if v >= 1 else 1
 
 in_run_sense = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)
 in_run_request = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -22,14 +34,14 @@ relay_start_gen.value(0)
 relay_kill_gen.value(0)
 
 cool_down_active = False
-cool_down_duration = 15 * 60 * 1000  # 15 minutes
+cool_down_duration = scaled(15 * 60 * 1000)   # 15 minutes
 cool_down_end = 0
 
-us_per_day = 24 * 60 * 60 * 1000  # one day ms counter
+us_per_day = scaled(24 * 60 * 60 * 1000)   # one day ms counter
 maintenance_active = False
 maintenance_interval = 7  # maintenance days
 days_until_maintenance = maintenance_interval
-maintenance_duration = 10 * 60 * 1000  # 10 minutes
+maintenance_duration = scaled(10 * 60 * 1000)   # 10 minutes
 maintenance_end = 0
 
 kill_gen = False
@@ -104,6 +116,34 @@ async def manage_start_stop():
 
         await asyncio.sleep_ms(50)
 
+def dump_registers():
+    print("---- REGISTERS ----")
+    print("run_sense:", is_running())
+    print("run_request:", is_request_run())
+    print("cool_down_active:", cool_down_active)
+    print("maintenance_active:", maintenance_active)
+    print("days_until_maintenance:", days_until_maintenance)
+    print("kill_gen:", kill_gen)
+    print("relay_start_gen:", relay_start_gen.value())
+    print("relay_kill_gen:", relay_kill_gen.value())
+    print("-------------------")
+
+async def serial_console():
+    print("Serial console ready. Commands:")
+    print("  r = read registers")
+    print("  h = help")
+
+    while True:
+        if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+            cmd = sys.stdin.readline().strip()
+            if cmd == "r":
+                dump_registers()
+            elif cmd == "h":
+                print("Commands:")
+                print("  r = read registers")
+                print("  h = help")
+        await asyncio.sleep_ms(100)
+
 async def update_leds():
     while True:
         led_running.value(is_running())
@@ -122,6 +162,9 @@ async def Main():
     t1 = asyncio.create_task(manage_start_stop())
     t2 = asyncio.create_task(update_leds())
     t3 = asyncio.create_task(wait_days())
-    await asyncio.gather(t1, t2, t3)
-
+    t4 = asyncio.create_task(serial_console())  # ← add this
+    await asyncio.gather(t1, t2, t3, t4)
+    
 asyncio.run(Main())
+
+

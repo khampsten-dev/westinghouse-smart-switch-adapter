@@ -15,7 +15,7 @@ cool_down_active = False
 cool_down_duration = 15 * 60 * 1000 # 15 minutes
 cool_down_end = 0
 
-us_per_day = 24 * 60 * 60 * 1000 # one day
+us_per_day = 24 * 60 * 60 * 1000 # one day ms counter
 maintenance_active = False
 maintenance_interval = 7 # maintenance days
 days_until_maintenance = maintenance_interval

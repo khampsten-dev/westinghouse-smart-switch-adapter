@@ -1,22 +1,31 @@
 import sys
-import select
+import uselect as select
 import machine
 import time
 
 DEBUG = True
+# Use PulseView to view the Logic Analyzer vcd import, but set "Compress Idle" to 500 and downsampling to 100
 
 if DEBUG:
     # Wokwi/MicroPython-friendly asyncio import (minimal change)
+    #https://wokwi.com/projects/451626647870733313
     import uasyncio as asyncio
-    TIME_SCALE = 0.001  # 1/1000 speed-up
 else:
     import asyncio
-    TIME_SCALE = 1
+
+#DEBUG ONLY =================================================================================
+SPEEDUP = 1000 if DEBUG else 1  # 1000x faster
+
 def scaled(duration):
-    v = int(duration * TIME_SCALE)
+    v = int(duration // SPEEDUP)
     return v if v >= 1 else 1
 
-in_run_sense = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)
+# DEBUG ONLY 
+clk = machine.Pin(25, machine.Pin.OUT) if DEBUG else None
+# ================================================================================= END DEBUG
+
+in_run_sense = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP) # pin 12 is bootstrap....
+#in_run_sense = machine.Pin(26, machine.Pin.IN, machine.Pin.PULL_UP)
 in_run_request = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
 led_run_request = machine.Pin(16, machine.Pin.OUT)
 led_running = machine.Pin(17, machine.Pin.OUT)
@@ -32,12 +41,13 @@ led_cool_down.value(0)
 led_maintenance.value(0)
 relay_start_gen.value(0)
 relay_kill_gen.value(0)
+clk.value(0)
 
 cool_down_active = False
 cool_down_duration = scaled(15 * 60 * 1000)   # 15 minutes
 cool_down_end = 0
 
-us_per_day = scaled(24 * 60 * 60 * 1000)   # one day ms counter
+us_per_day = 5000 if DEBUG else scaled(24 * 60 * 60 * 1000)
 maintenance_active = False
 maintenance_interval = 7  # maintenance days
 days_until_maintenance = maintenance_interval
@@ -128,6 +138,13 @@ def dump_registers():
     print("relay_kill_gen:", relay_kill_gen.value())
     print("-------------------")
 
+async def debug_clk():
+    while True:
+        clk.value(1)
+        await asyncio.sleep_ms(10)
+        clk.value(0)
+        await asyncio.sleep_ms(10)
+
 async def serial_console():
     print("Serial console ready. Commands:")
     print("  r = read registers")
@@ -158,13 +175,17 @@ async def wait_days():
         await asyncio.sleep_ms(us_per_day)
         days_until_maintenance -= 1
 
+
 async def Main():
     t1 = asyncio.create_task(manage_start_stop())
     t2 = asyncio.create_task(update_leds())
     t3 = asyncio.create_task(wait_days())
     t4 = asyncio.create_task(serial_console())  # ← add this
+    if DEBUG:
+        t5 = asyncio.create_task(debug_clk())    
     await asyncio.gather(t1, t2, t3, t4)
     
 asyncio.run(Main())
+
 
 

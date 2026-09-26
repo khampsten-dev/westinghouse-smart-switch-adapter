@@ -121,6 +121,11 @@ class GeneratorController:
         self.state_log = []
         self.max_log_entries = 200
 
+        # Extended uptime for long-lived reporting. time.ticks_ms() wraps,
+        # so accumulate rollover-safe deltas using time.ticks_diff().
+        self._uptime_last_tick = time.ticks_ms()
+        self._uptime_ms = 0
+
         self.prev_state = {
             'running': False,
             'run_request': False,
@@ -178,9 +183,17 @@ class GeneratorController:
         self.maintenance_start_minute = config["maintenance_start_minute"]
         self.log_state_change('Maintenance Reset', f'Countdown reset to {self.days_until_maintenance} days')
 
+    def get_uptime_ms(self):
+        """Return monotonic uptime in ms across time.ticks_ms() rollover."""
+        now = time.ticks_ms()
+        elapsed = time.ticks_diff(now, self._uptime_last_tick)
+        self._uptime_ms += elapsed
+        self._uptime_last_tick = now
+        return self._uptime_ms
+
     def log_state_change(self, event, details=''):
-        """Log a state transition with timestamp"""
-        entry = (time.ticks_ms(), event, details)
+        """Log a state transition with a rollover-safe uptime timestamp."""
+        entry = (self.get_uptime_ms(), event, details)
         self.state_log.append(entry)
         if len(self.state_log) > self.max_log_entries:
             self.state_log.pop(0)
@@ -463,6 +476,9 @@ async def manage_start_stop():
     while True:
         loop_count += 1
 
+        # Sample often so extended uptime remains valid across ticks_ms rollover.
+        controller.get_uptime_ms()
+
         # Check if a day has passed for maintenance countdown
         current_time = time.ticks_ms()
         time_since_check = time.ticks_diff(current_time, controller.maintenance_check_time)
@@ -555,9 +571,23 @@ def get_status(request):
 @app.route('/uptime')
 def get_uptime(request):
     try:
-        return {'uptime_ms': time.ticks_ms()}
+        return {'uptime_ms': controller.get_uptime_ms()}
     except Exception as e:
         print('[ERROR] /uptime route:', e)
+        return {'error': str(e)}
+
+@app.route('/memory')
+def get_memory(request):
+    try:
+        gc.collect()
+        return {
+            'free_bytes': gc.mem_free(),
+            'allocated_bytes': gc.mem_alloc(),
+            'log_entries': len(controller.state_log),
+            'max_log_entries': controller.max_log_entries
+        }
+    except Exception as e:
+        print('[ERROR] /memory route:', e)
         return {'error': str(e)}
 
 
@@ -571,7 +601,7 @@ def get_log(request):
                     yield ','
                 yield ujson.dumps({'timestamp': ts, 'event': ev, 'details': det})
             yield '],"current_state":' + ujson.dumps(controller.current_state_name)
-            yield ',"uptime_ms":' + str(time.ticks_ms()) + '}'
+            yield ',"uptime_ms":' + str(controller.get_uptime_ms()) + '}'
         return generate_log(), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print('[ERROR] /log route:', e)

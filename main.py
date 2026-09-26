@@ -7,6 +7,7 @@ import gc
 import log_persistence
 
 CONFIG_FILE = 'config.json'
+FIRMWARE_VERSION = '2026.09.26-r1'
 
 def load_config():
     defaults = {
@@ -44,7 +45,7 @@ rtc_base_minutes = 0
 rtc_base_ticks = time.ticks_ms()
 
 def get_current_minutes():
-    elapsed_minutes = (time.ticks_ms() - rtc_base_ticks) // 60000
+    elapsed_minutes = time.ticks_diff(time.ticks_ms(), rtc_base_ticks) // 60000
     return (rtc_base_minutes + elapsed_minutes) % 1440
 
 in_run_request = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -128,8 +129,14 @@ class GeneratorController:
         self.pulse_cooldown = 0
 
         self.max_log_entries = 200
+
+        # Long-lived monotonic uptime. Raw ticks_ms() wraps, so only use
+        # ticks_diff() to accumulate elapsed time across rollover.
+        self._uptime_last_tick = time.ticks_ms()
+        self._uptime_ms = 0
+
         self.wall_clock_epoch_ms = None
-        self.wall_clock_ticks_ms = None
+        self.wall_clock_uptime_ms = None
         self.persisted_log_manager = log_persistence.PersistentLogManager(
             flush_interval_ms=config.get("log_flush_interval_ms", log_persistence.PERSISTED_LOG_FLUSH_INTERVAL_MS),
             flush_line_threshold=config.get("log_flush_line_threshold", log_persistence.PERSISTED_LOG_FLUSH_LINE_THRESHOLD),
@@ -194,9 +201,17 @@ class GeneratorController:
         self.maintenance_start_minute = config["maintenance_start_minute"]
         self.log_state_change('Maintenance Reset', f'Countdown reset to {self.days_until_maintenance} days')
 
+    def get_uptime_ms(self):
+        """Return monotonic uptime in ms across ticks_ms() rollover."""
+        now = time.ticks_ms()
+        elapsed = time.ticks_diff(now, self._uptime_last_tick)
+        self._uptime_ms += elapsed
+        self._uptime_last_tick = now
+        return self._uptime_ms
+
     def log_state_change(self, event, details=''):
-        """Log a state transition with timestamp"""
-        timestamp = time.ticks_ms()
+        """Log a state transition with rollover-safe uptime timestamp."""
+        timestamp = self.get_uptime_ms()
         entry = {
             'timestamp': timestamp,
             'event': event,
@@ -208,22 +223,22 @@ class GeneratorController:
         self.state_log.append(entry)
         if len(self.state_log) > self.max_log_entries:
             self.state_log.pop(0)
-        self.persisted_log_manager.mark_dirty(self.state_log)
+        self.persisted_log_manager.mark_dirty(self.state_log, timestamp)
         print(f"[{timestamp}] {event}: {details}")
 
     def current_wall_timestamp(self, timestamp=None):
-        if self.wall_clock_epoch_ms is None or self.wall_clock_ticks_ms is None:
+        if self.wall_clock_epoch_ms is None or self.wall_clock_uptime_ms is None:
             return None
         if timestamp is None:
-            timestamp = time.ticks_ms()
-        return int(self.wall_clock_epoch_ms + timestamp - self.wall_clock_ticks_ms)
+            timestamp = self.get_uptime_ms()
+        return int(self.wall_clock_epoch_ms + timestamp - self.wall_clock_uptime_ms)
 
-    def sync_wall_clock(self, epoch_ms, ticks_ms=None):
-        if ticks_ms is None:
-            ticks_ms = time.ticks_ms()
+    def sync_wall_clock(self, epoch_ms, uptime_ms=None):
+        if uptime_ms is None:
+            uptime_ms = self.get_uptime_ms()
 
         self.wall_clock_epoch_ms = int(epoch_ms)
-        self.wall_clock_ticks_ms = int(ticks_ms)
+        self.wall_clock_uptime_ms = int(uptime_ms)
 
         for entry in self.state_log:
             if entry.get('wall_timestamp') is None:
@@ -564,7 +579,7 @@ async def manage_start_stop():
 
         # Feed watchdog every loop iteration (200 ms) to prevent reset during normal operation
         wdt.feed()
-        controller.persisted_log_manager.maybe_flush(controller.state_log)
+        controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
         await asyncio.sleep_ms(200)
 
 async def update_leds():
@@ -603,9 +618,26 @@ def get_status(request):
 @app.route('/uptime')
 def get_uptime(request):
     try:
-        return {'uptime_ms': time.ticks_ms()}
+        return {'uptime_ms': controller.get_uptime_ms(), 'firmware_version': FIRMWARE_VERSION}
     except Exception as e:
         print('[ERROR] /uptime route:', e)
+        return {'error': str(e)}
+
+
+@app.route('/memory')
+def get_memory(request):
+    try:
+        gc.collect()
+        return {
+            'free_bytes': gc.mem_free(),
+            'allocated_bytes': gc.mem_alloc(),
+            'log_entries': len(controller.state_log),
+            'max_log_entries': controller.max_log_entries,
+            'uptime_ms': controller.get_uptime_ms(),
+            'firmware_version': FIRMWARE_VERSION
+        }
+    except Exception as e:
+        print('[ERROR] /memory route:', e)
         return {'error': str(e)}
 
 
@@ -619,7 +651,8 @@ def get_log(request):
                     yield ','
                 yield ujson.dumps(entry)
             yield '],"current_state":' + ujson.dumps(controller.current_state_name)
-            yield ',"uptime_ms":' + str(time.ticks_ms()) + '}'
+            yield ',"uptime_ms":' + str(controller.get_uptime_ms())
+            yield ',"firmware_version":' + ujson.dumps(FIRMWARE_VERSION) + '}'
         return generate_log(), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         print('[ERROR] /log route:', e)

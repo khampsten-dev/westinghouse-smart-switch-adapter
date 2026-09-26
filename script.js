@@ -147,6 +147,10 @@ function updateUptime() {
             if (uptimeDisplay) {
                 uptimeDisplay.textContent = formatUptime(currentUptime / 1000);
             }
+            const firmwareVersion = document.getElementById('firmwareVersion');
+            if (firmwareVersion && data.firmware_version) {
+                firmwareVersion.textContent = data.firmware_version;
+            }
         })
         .catch(e => console.error('Error updating uptime:', e));
 }
@@ -187,6 +191,10 @@ function updateLog() {
             // Update uptime display
             if (document.getElementById('uptimeDisplay')) {
                 document.getElementById('uptimeDisplay').textContent = formatUptime(currentUptime);
+            }
+            const firmwareVersion = document.getElementById('firmwareVersion');
+            if (firmwareVersion && data.firmware_version) {
+                firmwareVersion.textContent = data.firmware_version;
             }
         })
         .catch(e => {

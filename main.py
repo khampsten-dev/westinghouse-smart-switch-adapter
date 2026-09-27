@@ -42,10 +42,10 @@ config = load_config()
 
 # Fake RTC
 rtc_base_minutes = 0
-rtc_base_ticks = time.ticks_ms()
+rtc_base_uptime_ms = 0
 
-def get_current_minutes():
-    elapsed_minutes = time.ticks_diff(time.ticks_ms(), rtc_base_ticks) // 60000
+def get_current_minutes(uptime_ms):
+    elapsed_minutes = (uptime_ms - rtc_base_uptime_ms) // 60000
     return (rtc_base_minutes + elapsed_minutes) % 1440
 
 in_run_request = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
@@ -255,7 +255,7 @@ class GeneratorController:
 
     def get_status_generator(self):
         current_time = time.ticks_ms()
-        current_minutes = get_current_minutes()
+        current_minutes = get_current_minutes(self.get_uptime_ms())
         configured_minutes = self.maintenance_start_hour * 60 + self.maintenance_start_minute
         minutes_until_start = (configured_minutes - current_minutes + 1440) % 1440
         total_minutes = self.days_until_maintenance * 1440 + minutes_until_start
@@ -264,9 +264,9 @@ class GeneratorController:
         yield '"running":' + ('true' if self.sensor_manager.is_running_debounced() else 'false')
         yield ',"run_request":' + ('true' if self.sensor_manager.is_request_run() else 'false')
         yield ',"cool_down":' + ('true' if self.cool_down_active else 'false')
-        yield ',"cool_down_remaining":' + str(max(0, self.cool_down_end - current_time))
+        yield ',"cool_down_remaining":' + str(max(0, time.ticks_diff(self.cool_down_end, current_time)))
         yield ',"maintenance":' + ('true' if self.maintenance_active else 'false')
-        yield ',"maintenance_remaining":' + str(max(0, self.maintenance_end - current_time))
+        yield ',"maintenance_remaining":' + str(max(0, time.ticks_diff(self.maintenance_end, current_time)))
         yield ',"maintenance_countdown":{"days":' + str(total_minutes // 1440)
         yield ',"hours":' + str((total_minutes % 1440) // 60)
         yield ',"minutes":' + str(total_minutes % 60)
@@ -278,12 +278,13 @@ class GeneratorController:
         yield ',"last_kill_action":' + str(self.last_kill_action)
         yield ',"last_run_sense_start":' + str(self.last_run_sense_start)
         yield ',"last_run_sense_end":' + str(self.last_run_sense_end)
+        yield ',"firmware_version":' + ujson.dumps(FIRMWARE_VERSION)
         yield '}'
 
     def is_maintenance_starting(self):
         if self.days_until_maintenance > 0:
             return False
-        current_minutes = get_current_minutes()
+        current_minutes = get_current_minutes(self.get_uptime_ms())
         configured_minutes = self.maintenance_start_hour * 60 + self.maintenance_start_minute
         return current_minutes >= configured_minutes
 
@@ -427,7 +428,7 @@ class StoppingState(State):
         relay_kill_gen.value(1)
         self.controller.stopping_waiting_for_stop = True
         self.controller.kill_relay_delay_timer = None  # Renamed for clarity
-        self.controller.last_kill_action = time.ticks_ms()  # Update last_kill_action
+        self.controller.last_kill_action = self.controller.get_uptime_ms()  # Update last_kill_action
         self.controller.stopping_start_time = time.ticks_ms()  # For timeout
         self.controller.log_state_change('Kill Relay', 'Activated')
         self.controller.prev_state['kill_relay'] = True
@@ -447,7 +448,7 @@ class StoppingState(State):
             # Already stopped, count 2 seconds
             if time.ticks_diff(time.ticks_ms(), self.controller.kill_relay_delay_timer) >= 2000:
                 relay_kill_gen.value(0)
-                self.controller.last_kill_action = time.ticks_ms()  # Update last_kill_action
+                self.controller.last_kill_action = self.controller.get_uptime_ms()  # Update last_kill_action
                 self.controller.log_state_change('Kill Relay', 'Deactivated (delay complete)')
                 self.controller.prev_state['kill_relay'] = False
                 self.controller.transition_to(GeneratorState.IDLE)
@@ -523,6 +524,9 @@ async def manage_start_stop():
     while True:
         loop_count += 1
 
+        # Keep extended uptime synchronized well inside the ticks_diff window.
+        current_uptime_ms = controller.get_uptime_ms()
+
         # Check if a day has passed for maintenance countdown
         current_time = time.ticks_ms()
         time_since_check = time.ticks_diff(current_time, controller.maintenance_check_time)
@@ -539,16 +543,16 @@ async def manage_start_stop():
         controller.sensor_manager.update_transitions()
         if controller.sensor_manager.became_running:
             controller.detected_runs += 1
-            controller.last_run_sense_start = time.ticks_ms()
+            controller.last_run_sense_start = controller.get_uptime_ms()
         elif controller.sensor_manager.stopped_running:
-            controller.last_run_sense_end = time.ticks_ms()
+            controller.last_run_sense_end = controller.get_uptime_ms()
 
         if controller.sensor_manager.became_running:
             controller.pulse_cooldown = 100  # 20 seconds cooldown after start
 
         request = controller.sensor_manager.is_request_run()
         if request and not previous_request:
-            controller.last_start_request = time.ticks_ms()
+            controller.last_start_request = controller.get_uptime_ms()
         elif not request and previous_request:
             controller.start_failed = False  # Reset failure flag when request clears
         previous_request = request
@@ -579,7 +583,7 @@ async def manage_start_stop():
 
         # Feed watchdog every loop iteration (200 ms) to prevent reset during normal operation
         wdt.feed()
-        controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
+        controller.persisted_log_manager.maybe_flush(controller.state_log, current_uptime_ms)
         await asyncio.sleep_ms(200)
 
 async def update_leds():
@@ -717,11 +721,11 @@ def update_config_route(request):
         controller.persisted_log_manager.max_bytes = config["persisted_log_max_bytes"]
 
         if current_minutes is not None:
-            global rtc_base_minutes, rtc_base_ticks
-            device_minutes = get_current_minutes()
+            global rtc_base_minutes, rtc_base_uptime_ms
+            device_minutes = get_current_minutes(controller.get_uptime_ms())
             if abs(device_minutes - current_minutes) > 1:
                 rtc_base_minutes = current_minutes
-                rtc_base_ticks = time.ticks_ms()
+                rtc_base_uptime_ms = controller.get_uptime_ms()
         if current_epoch_ms is not None:
             controller.sync_wall_clock(current_epoch_ms)
 
@@ -748,7 +752,7 @@ def test_force_maintenance(request):
     try:
         if controller.maintenance_pending or controller.maintenance_active or controller.current_state_name in ['starting', 'confirm_started']:
             return {'status': 'error', 'message': 'Maintenance already in progress or starting'}
-        current_minutes = get_current_minutes()
+        current_minutes = get_current_minutes(controller.get_uptime_ms())
         controller.maintenance_start_hour = current_minutes // 60
         controller.maintenance_start_minute = current_minutes % 60
         controller.days_until_maintenance = 0

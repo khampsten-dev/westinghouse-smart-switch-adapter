@@ -9,6 +9,7 @@ import log_persistence
 CONFIG_FILE = 'config.json'
 FIRMWARE_VERSION = '2026.09.26-r4'
 MAINTENANCE_FLAG = 'maintenance.flag'
+print('Firmware version:', FIRMWARE_VERSION)
 
 # Planned service mode. If this file exists, stop before initializing
 # hardware services or the watchdog so Thonny gets a stable REPL.

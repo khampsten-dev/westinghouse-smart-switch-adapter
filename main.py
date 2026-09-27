@@ -7,7 +7,8 @@ import gc
 import log_persistence
 
 CONFIG_FILE = 'config.json'
-FIRMWARE_VERSION = '2026.09.26-r1'
+FIRMWARE_VERSION = '2026.09.26-r2'
+STARTUP_SERVICE_WINDOW_SECONDS = 5
 
 def load_config():
     defaults = {
@@ -60,6 +61,12 @@ relay_kill_gen = machine.Pin(33, machine.Pin.OUT)
 # Initialize relays to safe state (off)
 relay_start_gen.value(0)
 relay_kill_gen.value(0)
+
+# Service window: keep the device interruptible before the hardware watchdog
+# is created. Press Ctrl+C in Thonny during this window to remain at a stable
+# REPL for file uploads or maintenance.
+print('Startup service window: press Ctrl+C within %d seconds for maintenance.' % STARTUP_SERVICE_WINDOW_SECONDS)
+time.sleep(STARTUP_SERVICE_WINDOW_SECONDS)
 
 # WiFi Access Point Setup
 ap = network.WLAN(network.AP_IF)

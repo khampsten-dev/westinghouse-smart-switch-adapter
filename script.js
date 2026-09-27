@@ -267,3 +267,23 @@ function overrideRequest(value) {
     })
     .catch(e => alert('Error: ' + e));
 }
+
+
+function armMaintenanceMode() {
+    if (!confirm('Arm maintenance mode? After this, reset or power-cycle the controller. It will stop at the MicroPython REPL before starting the watchdog.')) {
+        return;
+    }
+    fetch('/maintenance/arm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            alert(data.message);
+        } else {
+            alert('Error: ' + (data.error || 'Could not arm maintenance mode'));
+        }
+    })
+    .catch(e => alert('Error: ' + e));
+}

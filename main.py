@@ -583,7 +583,7 @@ async def manage_start_stop():
 
         # Feed watchdog every loop iteration (200 ms) to prevent reset during normal operation
         wdt.feed()
-        controller.persisted_log_manager.maybe_flush(controller.state_log, current_uptime_ms)
+        controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
         await asyncio.sleep_ms(200)
 
 async def update_leds():

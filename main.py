@@ -86,10 +86,18 @@ while not ap.active():
 print('AP active, IP:', ap.ifconfig()[0])
 print('Connect to: http://gencontroller.local')
 
-# Hardware watchdog: reboot the controller if the main control loop stops
-# making progress. Once started, MicroPython cannot stop the WDT, which is
-# why planned Thonny maintenance is selected before reaching this point.
-wdt = machine.WDT(timeout=8000)
+# Hardware watchdog: enabled by default. For diagnostics, create
+# disable_watchdog.flag before boot to run without the watchdog.
+watchdog_enabled = True
+try:
+    with open(DIAGNOSTIC_NO_WDT_FLAG, 'r'):
+        pass
+    watchdog_enabled = False
+    print('Hardware watchdog disabled for diagnostics')
+except OSError:
+    pass
+
+wdt = machine.WDT(timeout=8000) if watchdog_enabled else None
 
 # Import Microdot after WiFi is initialized
 from microdot import Microdot, Response, send_file

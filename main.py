@@ -652,6 +652,10 @@ def get_uptime(request):
 
 @app.route('/memory')
 def get_memory(request):
+    # Note: refreshing or closing the browser while this endpoint is being read
+    # can cause Microdot to print a benign ECONNRESET traceback. If the server
+    # remains responsive afterward, this is a dropped client connection, not
+    # a controller/watchdog failure.
     try:
         gc.collect()
         return {

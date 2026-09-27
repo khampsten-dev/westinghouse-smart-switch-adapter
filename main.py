@@ -7,8 +7,7 @@ import gc
 import log_persistence
 
 CONFIG_FILE = 'config.json'
-FIRMWARE_VERSION = '2026.09.26-r2'
-STARTUP_SERVICE_WINDOW_SECONDS = 5
+FIRMWARE_VERSION = '2026.09.26-r3'
 
 def load_config():
     defaults = {
@@ -62,12 +61,6 @@ relay_kill_gen = machine.Pin(33, machine.Pin.OUT)
 relay_start_gen.value(0)
 relay_kill_gen.value(0)
 
-# Service window: keep the device interruptible before the hardware watchdog
-# is created. Press Ctrl+C in Thonny during this window to remain at a stable
-# REPL for file uploads or maintenance.
-print('Startup service window: press Ctrl+C within %d seconds for maintenance.' % STARTUP_SERVICE_WINDOW_SECONDS)
-time.sleep(STARTUP_SERVICE_WINDOW_SECONDS)
-
 # WiFi Access Point Setup
 ap = network.WLAN(network.AP_IF)
 ap.config(hostname='gencontroller')
@@ -79,11 +72,6 @@ while not ap.active():
     time.sleep(0.1)
 print('AP active, IP:', ap.ifconfig()[0])
 print('Connect to: http://gencontroller.local')
-
-# Watchdog timer – 8-second timeout.  Feed it every loop iteration (200 ms)
-# in manage_start_stop() so a hang or crash triggers an automatic reset.
-# Initialized after WiFi setup so slow AP bringup does not cause a spurious reset.
-wdt = machine.WDT(timeout=8000)
 
 # Import Microdot after WiFi is initialized
 from microdot import Microdot, Response, send_file
@@ -589,7 +577,6 @@ async def manage_start_stop():
             gc.collect()
 
         # Feed watchdog every loop iteration (200 ms) to prevent reset during normal operation
-        wdt.feed()
         controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
         await asyncio.sleep_ms(200)
 

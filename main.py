@@ -603,7 +603,8 @@ async def manage_start_stop():
             gc.collect()
 
         # Feed watchdog only after the control loop has completed its work.
-        wdt.feed()
+        if wdt is not None:
+            wdt.feed()
         controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
         await asyncio.sleep_ms(200)
 
@@ -659,7 +660,8 @@ def get_memory(request):
             'log_entries': len(controller.state_log),
             'max_log_entries': controller.max_log_entries,
             'uptime_ms': controller.get_uptime_ms(),
-            'firmware_version': FIRMWARE_VERSION
+            'firmware_version': FIRMWARE_VERSION,
+            'watchdog_enabled': watchdog_enabled
         }
     except Exception as e:
         print('[ERROR] /memory route:', e)

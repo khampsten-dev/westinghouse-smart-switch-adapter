@@ -7,8 +7,9 @@ import gc
 import log_persistence
 
 CONFIG_FILE = 'config.json'
-FIRMWARE_VERSION = '2026.09.26-r4'
+FIRMWARE_VERSION = '2026.09.26-r5'
 MAINTENANCE_FLAG = 'maintenance.flag'
+DIAGNOSTIC_NO_WDT_FLAG = 'disable_watchdog.flag'
 print('Firmware version:', FIRMWARE_VERSION)
 
 # Planned service mode. If this file exists, stop before initializing

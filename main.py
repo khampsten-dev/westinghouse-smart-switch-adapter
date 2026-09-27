@@ -7,7 +7,18 @@ import gc
 import log_persistence
 
 CONFIG_FILE = 'config.json'
-FIRMWARE_VERSION = '2026.09.26-r3'
+FIRMWARE_VERSION = '2026.09.26-r4'
+MAINTENANCE_FLAG = 'maintenance.flag'
+
+# Planned service mode. If this file exists, stop before initializing
+# hardware services or the watchdog so Thonny gets a stable REPL.
+try:
+    with open(MAINTENANCE_FLAG, 'r'):
+        pass
+    print('Maintenance mode active. Remove maintenance.flag when service is complete.')
+    raise SystemExit
+except OSError:
+    pass
 
 def load_config():
     defaults = {
@@ -72,6 +83,11 @@ while not ap.active():
     time.sleep(0.1)
 print('AP active, IP:', ap.ifconfig()[0])
 print('Connect to: http://gencontroller.local')
+
+# Hardware watchdog: reboot the controller if the main control loop stops
+# making progress. Once started, MicroPython cannot stop the WDT, which is
+# why planned Thonny maintenance is selected before reaching this point.
+wdt = machine.WDT(timeout=8000)
 
 # Import Microdot after WiFi is initialized
 from microdot import Microdot, Response, send_file
@@ -576,7 +592,8 @@ async def manage_start_stop():
         if loop_count % 100 == 0:
             gc.collect()
 
-        # Feed watchdog every loop iteration (200 ms) to prevent reset during normal operation
+        # Feed watchdog only after the control loop has completed its work.
+        wdt.feed()
         controller.persisted_log_manager.maybe_flush(controller.state_log, controller.get_uptime_ms())
         await asyncio.sleep_ms(200)
 
@@ -738,6 +755,19 @@ def ping(request):
         return {'status': 'ok', 'message': 'Server is running'}
     except Exception as e:
         print('[ERROR] /ping route:', e)
+        return {'error': str(e)}
+
+@app.route('/maintenance/arm', methods=['POST'])
+def arm_maintenance(request):
+    try:
+        with open(MAINTENANCE_FLAG, 'w') as f:
+            f.write('armed')
+        return {
+            'status': 'ok',
+            'message': 'Maintenance mode armed. Reset or power-cycle the controller, then connect with Thonny.'
+        }
+    except Exception as e:
+        print('[ERROR] /maintenance/arm route:', e)
         return {'error': str(e)}
 
 # Testing endpoints
